@@ -1,65 +1,41 @@
-#include <FlexIO_t4.h>
+#include <Arduino.h>
 #include "TDWS2811.h"
-#define FLEXMODULE 0
-#define NUMLEDS 1000
-uint32_t serialInterruptEnable;
-DMAChannel dmaChannel;
-DMASetting dmaSetting[4];
-uint8_t activeBuffer=0;
-uint32_t frameBuffer[2][24*NUMLEDS]={{0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF},{0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0}};
-volatile const uint32_t zeros[40]={0};
-volatile const uint32_t ones[2]={0xFFFFFFFF,0xFFFFFFFF};
 
-void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  Serial.println("Start Setup");
-  
-  FlexIOHandler *pFlex = FlexIOHandler::flexIOHandler_list[FLEXMODULE];
+TDWS2811 *TDWS2811::pTD={nullptr};
+
+TDWS2811::TDWS2811(uint16_t ledCnt) {
+  pFlex = FlexIOHandler::flexIOHandler_list[FLEXMODULE];
 
   configurePins();
-  configurePll(pFlex);
-  configureFlexIO(pFlex);
-  configureDma(pFlex);
-  Serial.printf("Setup complete!");
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-  digitalWrite(2, !digitalRead(2));
-  digitalWrite(13, !digitalRead(13));
-  flipBuffers();
-  delay(500);
+  configurePll();
+  configureFlexIO();
+  configureDma();
 
 }
 
-void shifterIsr(void) {
-  digitalWriteFast(0, HIGH);
-  int i=0;
-  for (i=0;i<1000;i++) __asm__ __volatile__ ("nop\n\t");
-  digitalWriteFast(0, LOW);
-  IMXRT_FLEXIO1_S.SHIFTBUFBIS[0]+=1;
-  IMXRT_FLEXIO1_S.SHIFTBUFBIS[0]-=1;}
+void TDWS2811::_dmaIsr(void) {
+  TDWS2811::pTD->dmaIsr();
+}
 
-void dmaIsr(void) {
+void TDWS2811::dmaIsr(void) {
   digitalWriteFast(1, HIGH);
   int i=0;
   for (i=0;i<1000;i++) __asm__ __volatile__ ("nop\n\t");
   digitalWriteFast(1, LOW);
-  dmaSetting[1].TCD->CSR &= ~DMA_TCD_CSR_INTMAJOR;  //Have to do this because DMASetting doesn't have a "disable interrupt" function
-  if (activeBuffer==0) {
-    activeBuffer=1;
-    dmaSetting[0].sourceBuffer(frameBuffer[1],sizeof(frameBuffer[1]));
+  TDWS2811::dmaSetting[1].TCD->CSR &= ~DMA_TCD_CSR_INTMAJOR;  //Have to do this because DMASetting doesn't have a "disable interrupt" function
+  if (TDWS2811::activeBuffer==0) {
+    TDWS2811::activeBuffer=1;
+    TDWS2811::dmaSetting[0].sourceBuffer(frameBuffer[1],sizeof(frameBuffer[1]));
   }
   else {
-    activeBuffer=0;
-    dmaSetting[0].sourceBuffer(frameBuffer[0],sizeof(frameBuffer[0]));
+    TDWS2811::activeBuffer=0;
+    TDWS2811::dmaSetting[0].sourceBuffer(frameBuffer[0],sizeof(frameBuffer[0]));
   }
-  dmaChannel.clearInterrupt();
+  TDWS2811::dmaChannel.clearInterrupt();
   for (i=0;i<10;i++) __asm__ __volatile__ ("nop\n\t");  //Some race condition between clearInterrupt() and the return of the ISR.  If we don't delay here, the ISR will fire again.
 }
 
-void configurePins(void) {
+void TDWS2811::configurePins(void) {
   pinMode(0, OUTPUT);
   pinMode(1, OUTPUT);
   pinMode(2, OUTPUT);
@@ -71,11 +47,10 @@ void configurePins(void) {
   pinMode(8, OUTPUT);
   pinMode(13, OUTPUT);
 }
-void configureFlexIO(FlexIOHandler *pFlex) {
+void TDWS2811::configureFlexIO(void) {
   IMXRT_FLEXIO_t *p = &pFlex->port();
   const FlexIOHandler::FLEXIO_Hardware_t *hw = &pFlex->hardware();
   
-  uint8_t res;
   pFlex->mapIOPinToFlexPin(2);
   pFlex->mapIOPinToFlexPin(3);
   pFlex->mapIOPinToFlexPin(4);
@@ -120,7 +95,7 @@ void configureFlexIO(FlexIOHandler *pFlex) {
 
 }
 
-void configurePll (FlexIOHandler *pFlex) {
+void TDWS2811::configurePll (void) {
   //Set up PLL5 (also known as "PLL_VIDEO" and "PLL_528"), connect to FlexIO1
   const FlexIOHandler::FLEXIO_Hardware_t *hw = &pFlex->hardware();
   uint32_t pllVideo;
@@ -158,16 +133,7 @@ void configurePll (FlexIOHandler *pFlex) {
       | CCM_CDCDR_FLEXIO1_CLK_SEL(2) | CCM_CDCDR_FLEXIO1_CLK_PRED(4) | CCM_CDCDR_FLEXIO1_CLK_PODF(0);
 }
 
-void configureInterrupts(FlexIOHandler *pFlex) {
-//Set up interrupts
-  IMXRT_FLEXIO_t *p = &pFlex->port();
-  const FlexIOHandler::FLEXIO_Hardware_t *hw = &pFlex->hardware();
-  attachInterruptVector(hw->flex_irq, shifterIsr);
-  NVIC_ENABLE_IRQ(hw->flex_irq);
-  p->SHIFTSIEN |= 0X00000001;
-}
-
-void configureDma(FlexIOHandler *pFlex) {
+void TDWS2811::configureDma() {
   /* A whole bunch of stuff to get DMA working.  Also need to set the applicable bit of the
    *  Shifter Status DMA Enable (SHIFTSDEN) register, see page 3051 of the Reference Manual
    *  FlexIO1 is on DMA Mux channel 0 (use DMAMUX_SOURCE_FLEXIO1_REQUEST0)
@@ -197,21 +163,11 @@ void configureDma(FlexIOHandler *pFlex) {
   dmaChannel.disable();
   dmaChannel=dmaSetting[0];
   dmaChannel.triggerAtHardwareEvent(hw->shifters_dma_channel[1]);
-  dmaChannel.attachInterrupt(dmaIsr);
-  
-  dumpDMA_TCD(&dmaChannel);
+  dmaChannel.attachInterrupt(&_dmaIsr);
+  pTD=this;
   dmaChannel.enable();
 }
 
-void flipBuffers(void){
+void TDWS2811::flipBuffers(void){
   dmaSetting[1].TCD->CSR |= DMA_TCD_CSR_INTMAJOR;
-}
-
-void dumpDMA_TCD(DMAChannel *dma)
-{
-  Serial.printf("DMA object's base address = %x\nDMA TCD base address = %x\n", (uint32_t)dma, (uint32_t)dma->TCD);
-
-  Serial.printf("SA: 0x%08x\nSO: %d\nAT: 0x%04x\nNB: 0x%08x\nSL: %d\nDA: 0x%08x\nDO: %d\nCI: %d\nDL: 0x%08x\nCS: 0x%08x\nBI: 0x%08x\n", (uint32_t)dma->TCD->SADDR,
-    dma->TCD->SOFF, dma->TCD->ATTR, dma->TCD->NBYTES, dma->TCD->SLAST, (uint32_t)dma->TCD->DADDR, 
-    dma->TCD->DOFF, dma->TCD->CITER, dma->TCD->DLASTSGA, dma->TCD->CSR, dma->TCD->BITER);
 }
