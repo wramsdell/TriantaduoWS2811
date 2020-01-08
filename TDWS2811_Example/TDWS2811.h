@@ -37,6 +37,9 @@ class TDWS2811
   public:
     TDWS2811(uint16_t);
     void flipBuffers(void);
+    uint32_t *getBuffer(void);
+    int getBufferLength(void);
+
   private:
     static void _shifterIsr(void);
     static void _dmaIsr(void);
