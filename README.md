@@ -27,7 +27,9 @@ Did I say DMA use sent one into Reference Manual hell?  Ha!  It's got nothing on
 
 ## Detailed Operational Description
 Shown below is the anatomy of a WS2811 bit.  String together 24 of those and you have one LED's worth of data.  String together multiple LEDs' data, take a rest for a bit, and you have a frame.  Let's look at how the signal's generated:
+
 ![A diagram of the phases of operation in making a single bit](Docs/WS2811_Phases.png)
+
 I first need to point out that mine is not a novel approach, it's very similar in structure to OctoWS2811, and I owe Paul a debt of gratitude for inspiring this project.  In order to most closely replicate the datasheet waveforms, I divide a bit time into four equal phases.  The first is always high, the second depends on the data to be transmitted, and the last two are zeros.  On the processor side, each phase corresponds to a 32-bit shift register inside FlexIO 1, hereafter referred to "shifters".
 
 To reconstruct a bit, first the data for each of the four phases is loaded into the on-chip shifters from their respective data registers.  This happens automatically as part of the FlexIO logic.  Immediately after the shifters are loaded, the FlexIO block issues a DMA trigger to reload the registers, and I'll address that in a bit.  Next we clock out each of those shifters in order, simultaneously clocking the data *in* to the off-chip shift registers, and latch each 32-bit word once it's complete.  The process repeats four times, once for each phase/shifter.  The FlexIO state machine keeps running constantly, there is no interruption to its trigger, ever.  All the rest is handled by DMA.
