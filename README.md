@@ -32,9 +32,15 @@ Shown below is the anatomy of a WS2811 bit.  String together 24 of those and you
 
 I first need to point out that mine is not a novel approach, it's very similar in structure to OctoWS2811, and I owe Paul a debt of gratitude for inspiring this project.  In order to most closely replicate the datasheet waveforms, I divide a bit time into four equal phases.  The first is always high, the second depends on the data to be transmitted, and the last two are zeros.  On the processor side, each phase corresponds to a 32-bit shift register inside FlexIO 1, hereafter referred to "shifters".
 
+![Output Timing Diagram](Docs/Timing_Diagram.png)
+
 To reconstruct a bit, first the data for each of the four phases is loaded into the on-chip shifters from their respective data registers.  This happens automatically as part of the FlexIO logic.  Immediately after the shifters are loaded, the FlexIO block issues a DMA trigger to reload the registers, and I'll address that in a bit.  Next we clock out each of those shifters in order, simultaneously clocking the data *in* to the off-chip shift registers, and latch each 32-bit word once it's complete.  The process repeats four times, once for each phase/shifter.  The FlexIO state machine keeps running constantly, there is no interruption to its trigger, ever.  All the rest is handled by DMA.
 
+![FlexIO Structure](Docs/FlexIO.png)
+
 On the DMA end, we just need to keep feeding the FlexIO registers.  That's accomplished by grabbing a data word from the LED frame buffer and stuffing it into Shifter 1, to be clocked out during phase 2.  During the frame body, that's it.  Once the frame buffer has been expended we need to drop to zero for a time (>=50us) to reset the LED chain in preparation for the next frame.  In order to do this, we loop to a second DMA transaction through the scatter/gather process.  That transaction forces zeros into the Phase 1 shifter (Shifter 0), then moves on to another transaction that dumps zeros into the Phase 2 shifter.  This transaction repeats multiple times, which is what determines the inter-frame time.  Once that transaction has run its course, we move on to a transaction that pushes all 1s into the Phase 1 shifter, and finally we jump back to our main transaction that stuffs LED data into the Phase 2 register.
+
+![DMA state diagram](Docs/DMA.png)
 
 There's also a provision in the system to accommodate multiple frame buffers and to switch between them during the blanking time between frames.  This is accomplished by setting the "Interrupt at end of transaction" bit in the second DMA transaction, the one that sets the Phase 1 shifter to all zeros.  When that interrupt fires, the ISR changes the pointer in transaction 0 (the main data loop) to point to the new frame buffer.  The ISR then disables transaction 1's interrupt at end bit and returns.  No other interrupts will be issued unless the frame buffer is changed again.
 
