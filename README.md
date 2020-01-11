@@ -48,4 +48,10 @@ That's really about it.
 
 # Testing
 ![Janky Shift Register](Docs/CrazyShifterSystemView.jpg)
-My cobbled-together shift register stack.
+A wise man once said "good layout practices are a must."  Oh wait, that was me, shortly before saying "Hold my beer!"  Because nothing beats trying to debug software with questionable hardware, I threw caution to the wind and stacked up four breakout boards to make a large enough shift register to test my code. Shockingly, it worked pretty well.
+![Clock and data waveforms with low drive strength](Docs/Teensy_Only_DSE_1.png)
+This is one data transition on the Teensy alone, without the pile of fhift registers attached.  Adjusting the drive strength (DSE) from 1 (above) to 6 (below) helped significantly.
+![Clock and data waveforms with increased driver strength](Docs/Teensy_Only_DSE_6.png)
+And with the shift registers attached:
+![Clock and data waveforms with external shift register attached, DSE=1](Docs/Shift_Register_DSE_1.png)
+![Clock and data waveforms with external shift register attached, DSE=6](Docs/Shift_Register_DSE_6.png)
