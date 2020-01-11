@@ -55,3 +55,4 @@ This is one data transition on the Teensy alone, without the pile of fhift regis
 And with the shift registers attached:
 ![Clock and data waveforms with external shift register attached, DSE=1](Docs/Shift_Register_DSE_1.png)
 ![Clock and data waveforms with external shift register attached, DSE=6](Docs/Shift_Register_DSE_6.png)
+I should also point out that I'm not exactly using great 'scope hygiene here, so the actual waveforms are probably better than they look here.  I'm using the alligator clip grounds, which are a major no-no when you want to examine nanosecond rise times.  Look, man, the LEDs flash when they're supposed to and don't when they aren't, so I'mma call it good for now.
