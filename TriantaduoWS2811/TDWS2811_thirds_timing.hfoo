@@ -37,8 +37,10 @@ class TDWS2811
   public:
     TDWS2811(uint16_t);
     void flipBuffers(void);
-    uint32_t *getBuffer(void);
+    uint32_t *getActiveBuffer(void);
+    uint32_t *getInactiveBuffer(void);
     int getBufferLength(void);
+    int setLed(uint8_t channel, uint8_t led, uint8_t rVal, uint8_t gVal, uint8_t bVal);
 
   private:
     static void _shifterIsr(void);
@@ -56,10 +58,15 @@ class TDWS2811
     DMAChannel dmaChannel;
     DMASetting dmaSetting[4];
     uint8_t activeBuffer=0;
-    uint32_t frameBuffer[2][24*NUMLEDS]={{0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF},{0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0}};
+//    uint32_t frameBuffer[2][24*NUMLEDS]={{0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF},{0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0,0xFFFFFFFF,0}};
+    uint32_t frameBuffer[2][24*NUMLEDS]={{0},{0}};
+//    uint32_t **frameBuffer;
     volatile const uint32_t zeros[40]={0};
     volatile const uint32_t ones[2]={0xFFFFFFFF,0xFFFFFFFF};
     static TDWS2811 *pTD;
+    IMXRT_FLEXIO_t *p = &pFlex->port();
+    const FlexIOHandler::FLEXIO_Hardware_t *hw = &pFlex->hardware();
+    uint32_t ledCnt;
 };
 
 #endif
