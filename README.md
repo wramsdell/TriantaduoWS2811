@@ -46,6 +46,6 @@ There's also a provision in the system to accommodate multiple frame buffers and
 
 That's really about it.
 
-#Testing
+# Testing
 ![Janky Shift Register](Docs/CrazyShifterSystemView.jpg)
 My cobbled-together shift register stack.
