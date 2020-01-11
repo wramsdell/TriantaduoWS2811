@@ -45,3 +45,7 @@ On the DMA end, we just need to keep feeding the FlexIO registers.  That's accom
 There's also a provision in the system to accommodate multiple frame buffers and to switch between them during the blanking time between frames.  This is accomplished by setting the "Interrupt at end of transaction" bit in the second DMA transaction, the one that sets the Phase 1 shifter to all zeros.  When that interrupt fires, the ISR changes the pointer in transaction 0 (the main data loop) to point to the new frame buffer.  The ISR then disables transaction 1's interrupt at end bit and returns.  No other interrupts will be issued unless the frame buffer is changed again.
 
 That's really about it.
+
+#Testing
+![Janky Shift Register](Docs/CrazyShifterSystemView.jpg)
+My cobbled-together shift register stack.
